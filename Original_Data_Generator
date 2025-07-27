@@ -1,0 +1,747 @@
+import streamlit as st
+import pandas as pd
+from snowflake.snowpark.context import get_active_session
+from snowflake.snowpark import functions as F
+from snowflake.snowpark.types import StructType, StructField, StringType, IntegerType, FloatType, DateType, TimestampType
+import random
+from datetime import datetime, timedelta
+import json
+import re
+
+# Initialize Snowflake session
+session = get_active_session()
+
+# Page configuration
+st.set_page_config(
+    page_title="Snowflake Agent Demo Data Generator",
+    page_icon="❄️",
+    layout="wide"
+)
+
+st.title("❄️ Snowflake Agent Demo Data Generator")
+st.markdown("Generate tailored demo data infrastructure for Cortex Analyst and Cortex Search services")
+
+# Initialize session state
+if 'demo_ideas' not in st.session_state:
+    st.session_state.demo_ideas = []
+if 'selected_demo' not in st.session_state:
+    st.session_state.selected_demo = None
+if 'generation_complete' not in st.session_state:
+    st.session_state.generation_complete = False
+
+def clean_company_name(url):
+    """Extract clean company name from URL"""
+    # Remove protocol and www
+    clean_url = re.sub(r'https?://(www\.)?', '', url.lower())
+    # Get domain name without extension
+    domain = clean_url.split('.')[0]
+    # Capitalize first letter
+    return domain.capitalize()
+
+def generate_demo_ideas_with_llm(company_url, team_members, use_cases):
+    """Generate 3 demo ideas using Snowflake Cortex LLM"""
+    company_name = clean_company_name(company_url)
+    
+    # Create prompt for LLM
+    prompt = f"""
+You are a Snowflake solutions architect creating tailored demo scenarios for a customer. Based on the information provided, generate 3 distinct demo ideas that showcase Snowflake's Cortex Analyst and Cortex Search capabilities.
+
+Customer Information:
+- Company: {company_name} ({company_url})
+- Team/Audience: {team_members}
+- Use Cases: {use_cases if use_cases else "Not specified"}
+
+For each demo, provide:
+1. A compelling title and description
+2. Two structured data tables (for Cortex Analyst) with realistic names and purposes
+3. One unstructured data table (for Cortex Search) with chunked text data
+
+Requirements:
+- Make demos relevant to the company's likely industry/domain
+- Consider the audience when designing complexity
+- Focus on business value and real-world scenarios
+- Ensure table names are SQL-friendly (uppercase, underscores)
+
+Return ONLY a JSON object with this exact structure:
+{{
+  "demos": [
+    {{
+      "title": "Demo Title",
+      "description": "Detailed description of what this demo showcases",
+      "industry_focus": "Primary industry or domain",
+      "business_value": "Key business value proposition",
+      "tables": {{
+        "structured_1": {{
+          "name": "TABLE_NAME_1",
+          "description": "What this table contains",
+          "purpose": "How Cortex Analyst will use this for analytics"
+        }},
+        "structured_2": {{
+          "name": "TABLE_NAME_2", 
+          "description": "What this table contains",
+          "purpose": "How Cortex Analyst will use this for analytics"
+        }},
+        "unstructured": {{
+          "name": "TABLE_NAME_CHUNKS",
+          "description": "What unstructured data this contains",
+          "purpose": "How Cortex Search will use this for semantic search"
+        }}
+      }}
+    }}
+  ]
+}}
+"""
+
+    try:
+        # Use Cortex Complete to generate ideas
+        result = session.sql("""
+            SELECT SNOWFLAKE.CORTEX.COMPLETE(
+                'claude-4-sonnet',
+                ?
+            ) as llm_response
+        """, [prompt]).collect()
+        
+        llm_response = result[0]['LLM_RESPONSE']
+        
+        # Parse JSON response
+        try:
+            match = re.search(r'\{.*\}', llm_response, re.DOTALL)
+            json_str = match.group(0)
+            demo_data = json.loads(json_str)
+            
+            # Add target audience to each demo
+            for demo in demo_data['demos']:
+                demo['target_audience'] = f"Designed for presentation to: {team_members}"
+                if use_cases:
+                    demo['customization'] = f"Tailored for: {use_cases}"
+            
+            return demo_data['demos']
+            
+        except json.JSONDecodeError:
+            st.warning("⚠️ LLM response wasn't valid JSON. Using fallback demo ideas.")
+            return get_fallback_demo_ideas(company_name, team_members, use_cases)
+            
+    except Exception as e:
+        st.warning(f"⚠️ Error calling Cortex LLM: {str(e)}. Using fallback demo ideas.")
+        return get_fallback_demo_ideas(company_name, team_members, use_cases)
+
+def get_fallback_demo_ideas(company_name, team_members, use_cases):
+    """Fallback demo ideas if LLM fails"""
+    demo_templates = [
+        {
+            "title": "E-commerce Analytics & Customer Intelligence",
+            "description": f"Comprehensive e-commerce analytics solution for {company_name}",
+            "industry_focus": "E-commerce/Retail",
+            "business_value": "Optimize sales performance and customer experience",
+            "tables": {
+                "structured_1": {
+                    "name": "SALES_TRANSACTIONS",
+                    "description": "Transaction-level sales data with customer, product, and revenue details",
+                    "purpose": "Enable Cortex Analyst to answer questions about sales performance, trends, and customer behavior"
+                },
+                "structured_2": {
+                    "name": "CUSTOMER_PROFILES",
+                    "description": "Customer demographic and behavioral data with segmentation",
+                    "purpose": "Support customer analytics and segmentation queries through Cortex Analyst"
+                },
+                "unstructured": {
+                    "name": "PRODUCT_REVIEWS_CHUNKS",
+                    "description": "Chunked customer reviews and feedback data",
+                    "purpose": "Enable Cortex Search for semantic search across customer feedback"
+                }
+            }
+        },
+        {
+            "title": "Financial Services Risk & Compliance",
+            "description": f"Risk management and compliance monitoring system for {company_name}",
+            "industry_focus": "Financial Services",
+            "business_value": "Enhance risk detection and regulatory compliance",
+            "tables": {
+                "structured_1": {
+                    "name": "TRANSACTION_MONITORING",
+                    "description": "Financial transaction data with risk scores and flags",
+                    "purpose": "Enable Cortex Analyst for transaction pattern analysis and risk assessment"
+                },
+                "structured_2": {
+                    "name": "COMPLIANCE_EVENTS",
+                    "description": "Regulatory events, violations, and remediation tracking",
+                    "purpose": "Support compliance reporting and trend analysis through Cortex Analyst"
+                },
+                "unstructured": {
+                    "name": "REGULATORY_DOCS_CHUNKS",
+                    "description": "Chunked regulatory documents and policy text",
+                    "purpose": "Enable Cortex Search for policy and regulation lookup"
+                }
+            }
+        },
+        {
+            "title": "Healthcare Patient Analytics & Research",
+            "description": f"Patient outcomes and research data platform for {company_name}",
+            "industry_focus": "Healthcare",
+            "business_value": "Improve patient outcomes and clinical decision making",
+            "tables": {
+                "structured_1": {
+                    "name": "PATIENT_OUTCOMES",
+                    "description": "Patient treatment outcomes and clinical metrics",
+                    "purpose": "Enable Cortex Analyst for clinical performance and outcome analysis"
+                },
+                "structured_2": {
+                    "name": "TREATMENT_PROTOCOLS",
+                    "description": "Standardized treatment protocols with effectiveness data",
+                    "purpose": "Support treatment analysis and protocol comparison through Cortex Analyst"
+                },
+                "unstructured": {
+                    "name": "CLINICAL_NOTES_CHUNKS",
+                    "description": "Chunked clinical notes and research documentation",
+                    "purpose": "Enable Cortex Search for clinical knowledge retrieval"
+                }
+            }
+        }
+    ]
+    
+    # Add context
+    for demo in demo_templates:
+        if team_members:
+            demo["target_audience"] = f"Designed for presentation to: {team_members}"
+        if use_cases:
+            demo["customization"] = f"Tailored for: {use_cases}"
+    
+    return demo_templates
+
+def generate_realistic_content_with_llm(table_info, num_records, company_name):
+    """Generate realistic table schema and content using LLM"""
+    #st.write('generate_realistic_content - start')
+    # Create schema generation prompt
+    schema_prompt = f"""
+You are a data architect creating realistic table schemas and sample data for a Snowflake demo.
+
+Table Information:
+- Name: {table_info['name']}
+- Description: {table_info['description']}
+- Purpose: {table_info['purpose']}
+- Company: {company_name}
+
+Generate a realistic table schema with 6-10 columns that would be appropriate for this table. Consider:
+- Primary keys and foreign keys
+- Appropriate data types (STRING, NUMBER, FLOAT, DATE, TIMESTAMP, BOOLEAN)
+- Business-relevant column names
+- Realistic constraints and relationships
+
+Return ONLY a JSON object with this structure with no aditional text before and after so I can create automation based on it:
+{{
+  "columns": [
+    {{
+      "name": "COLUMN_NAME",
+      "type": "DATA_TYPE", 
+      "description": "What this column represents",
+      "sample_values": ["example1", "example2", "example3"]
+    }}
+  ]
+}}
+"""
+
+    try:
+        #st.write(schema_prompt)
+        # Get schema from LLM
+        schema_result = session.sql("""
+            SELECT SNOWFLAKE.CORTEX.COMPLETE(
+                'claude-4-sonnet',
+                ?
+            ) as llm_response
+        """, [schema_prompt]).collect()
+        
+        schema_response = schema_result[0]['LLM_RESPONSE']
+        
+        try:
+
+            
+            #st.write(f"kfir: {schema_response}")
+            # First clean up the response string
+            match = re.search(r'\{.*\}', schema_response, re.DOTALL)
+            json_str = match.group(0)
+            #st.write(f"kfir: {json_str}")
+            #schema_data = orjson.loads(schema_response)
+            #st.write(f"amiram: {schema_data}")
+
+            # Replace single quotes with double quotes if that's the issue
+            #schema_response = schema_response.replace("'", '"')
+            
+            # Then try to parse it
+            schema_data = json.loads(json_str)
+            #st.write(f"amiram: {json_str}")
+            return generate_data_from_schema(schema_data, num_records, table_info, company_name)
+        
+        except json.JSONDecodeError:
+            st.warning(f"⚠️ Could not parse schema for {table_info['name']}, using fallback")
+            return generate_fallback_data(table_info['name'], num_records, company_name)
+            
+    except Exception as e:
+        st.warning(f"⚠️ Error generating schema for {table_info['name']}: {str(e)}")
+        return generate_fallback_data(table_info['name'], num_records, company_name)
+
+def generate_unstructured_content_with_llm(table_info, num_records, company_name):
+    """Generate realistic unstructured text chunks using LLM"""
+    capped_num_records = min(num_records, 200)
+
+    # Create content generation prompt
+    content_prompt = f"""
+You are creating realistic unstructured text content for a Snowflake Cortex Search demo.
+
+Table Information:
+- Name: {table_info['name']}
+- Description: {table_info['description']}
+- Purpose: {table_info['purpose']}
+- Company: {company_name}
+
+Generate {capped_num_records} different realistic text samples that would be found in this type of data. Each should be 2-4 sentences long and relevant to the business context.
+
+Examples should be:
+- Realistic business content
+- Varied in tone and style
+- Relevant to the table's purpose
+- Appropriate for semantic search
+- Professional but natural
+
+Return ONLY a JSON array of text strings:
+["text sample 1", "text sample 2", ...]
+"""
+
+    try:
+        # Get content from LLM
+        content_result = session.sql("""
+            SELECT SNOWFLAKE.CORTEX.COMPLETE(
+                'claude-4-sonnet',
+                ?
+            ) as llm_response
+        """, [content_prompt]).collect()
+        
+        content_response = content_result[0]['LLM_RESPONSE']
+        #st.write(f"kfir: {content_response}")
+        try:
+            import json
+            match = re.search(r'\[.*\]', content_response, re.DOTALL)
+            json_str = match.group(0)
+            text_samples = json.loads(json_str)
+            return generate_chunked_data_from_samples(text_samples, num_records, table_info, company_name)
+        
+        except json.JSONDecodeError:
+            st.warning(f"⚠️ Could not parse content for {table_info['name']}, using fallback")
+            return generate_fallback_unstructured_data(table_info['name'], num_records, company_name)
+            
+    except Exception as e:
+        st.warning(f"⚠️ Error generating content for {table_info['name']}: {str(e)}")
+        return generate_fallback_unstructured_data(table_info['name'], num_records, company_name)
+
+def generate_data_from_schema(schema_data, num_records, table_info, company_name):
+    """Generate realistic data based on LLM-provided schema"""
+    data = []
+    #st.write("generate_data_from_schema - start")
+    for i in range(num_records):
+        record = {}
+        
+        for col in schema_data['columns']:
+            col_name = col['name']
+            col_type = col['type'].upper()
+            sample_values = col.get('sample_values', [])
+            
+            # Generate values based on type and samples
+            if col_type in ['STRING', 'VARCHAR', 'TEXT']:
+                if sample_values:
+                    record[col_name] = random.choice(sample_values)
+                else:
+                    record[col_name] = f"Sample_{i+1}"
+                    
+            elif col_type in ['NUMBER', 'INTEGER', 'INT']:
+                if 'ID' in col_name.upper():
+                    record[col_name] = i + 1
+                elif sample_values:
+                    record[col_name] = random.choice([int(x) for x in sample_values if str(x).isdigit()])
+                else:
+                    record[col_name] = random.randint(1, 1000)
+                    
+            elif col_type in ['FLOAT', 'DECIMAL', 'DOUBLE']:
+                if sample_values:
+                    record[col_name] = float(random.choice(sample_values))
+                else:
+                    record[col_name] = round(random.uniform(0, 1000), 2)
+                    
+            elif col_type in ['DATE']:
+                record[col_name] = (datetime.now() - timedelta(days=random.randint(1, 365))).date()
+                
+            elif col_type in ['TIMESTAMP', 'DATETIME']:
+                record[col_name] = datetime.now() - timedelta(days=random.randint(1, 365), hours=random.randint(0, 23))
+                
+            elif col_type in ['BOOLEAN']:
+                record[col_name] = random.choice([True, False])
+                
+            else:
+                # Default to string
+                if sample_values:
+                    record[col_name] = random.choice(sample_values)
+                else:
+                    record[col_name] = f"Value_{i+1}"
+        
+        data.append(record)
+    #st.write("generate_data_from_schema - finished")
+    return data
+
+def generate_chunked_data_from_samples(text_samples, num_records, table_info, company_name):
+    """Generate chunked unstructured data from LLM text samples"""
+    data = []
+    chunk_id = 1
+    
+    for i in range(num_records):
+        # Select a random text sample
+        full_text = random.choice(text_samples)
+        
+        # Split into chunks (simulate document chunking)
+        sentences = full_text.split('. ')
+        
+        # Create chunks of 1-2 sentences each
+        chunk_size = random.randint(1, 2)
+        for j in range(0, len(sentences), chunk_size):
+            chunk_sentences = sentences[j:j+chunk_size]
+            chunk_text = '. '.join(chunk_sentences)
+            if chunk_text and not chunk_text.endswith('.'):
+                chunk_text += '.'
+                
+            if chunk_text.strip():
+                data.append({
+                    'CHUNK_ID': f'CHUNK_{chunk_id:08d}',
+                    'DOCUMENT_ID': f'DOC_{i+1:06d}',
+                    'CHUNK_TEXT': chunk_text.strip(),
+                    'CHUNK_POSITION': (j // chunk_size) + 1,
+                    'CHUNK_LENGTH': len(chunk_text),
+                    'DOCUMENT_TYPE': table_info['name'].replace('_CHUNKS', '').lower(),
+                    'SOURCE_SYSTEM': company_name.upper(),
+                    'CREATED_DATE': (datetime.now() - timedelta(days=random.randint(1, 365))).date(),
+                    'LAST_MODIFIED': datetime.now() - timedelta(days=random.randint(0, 30)),
+                    'METADATA': json.dumps({
+                        'source_table': table_info['name'],
+                        'chunk_method': 'sentence_boundary',
+                        'language': 'en',
+                        'confidence_score': round(random.uniform(0.7, 1.0), 2)
+                    })
+                })
+                chunk_id += 1
+    
+    return data
+
+def generate_fallback_data(table_name, num_records, company_name):
+    """Fallback data generation when LLM fails"""
+    # Use the existing create_sample_data function as fallback
+    return create_sample_data("", table_name, num_records, company_name)
+
+def generate_fallback_unstructured_data(table_name, num_records, company_name):
+    """Fallback unstructured data when LLM fails"""
+    fallback_texts = [
+        "This document contains important business information that needs to be searchable and accessible.",
+        "The quarterly review shows significant improvements in key performance indicators across all departments.",
+        "Customer feedback indicates high satisfaction with our latest product features and service quality.",
+        "Compliance requirements have been updated to reflect the latest regulatory changes in our industry.",
+        "The technical documentation provides detailed instructions for system configuration and maintenance.",
+        "Market analysis reveals new opportunities for expansion in emerging geographical regions.",
+        "Employee training materials have been revised to include best practices and updated procedures.",
+        "Financial projections indicate steady growth potential over the next fiscal year period.",
+        "Quality assurance protocols ensure consistent delivery of services meeting industry standards.",
+        "Strategic planning documents outline key initiatives for digital transformation and innovation."
+    ]
+    
+    return generate_chunked_data_from_samples(fallback_texts, num_records, {'name': table_name}, company_name)
+
+def create_sample_data(table_type, table_name, num_records, company_name):
+    """Enhanced sample data creation that uses LLM for realistic content"""
+    
+    # This function now serves as a router to the new LLM-based generation
+    # For backwards compatibility, we'll check if we have table_info
+    table_info = {
+        'name': table_name,
+        'description': f"Sample data for {table_name}",
+        'purpose': f"Demo table for {company_name}"
+    }
+    
+    if 'CHUNKS' in table_name:
+        return generate_fallback_unstructured_data(table_name, num_records, company_name)
+    else:
+        return generate_fallback_data(table_name, num_records, company_name)
+
+def create_tables_in_snowflake(schema_name, demo_data, num_records, company_name):
+    """Create schema and tables in Snowflake with LLM-generated realistic data"""
+    try:
+        # Create schema
+        schema_name.replace('-', '_')
+        st.write(f"kfir: {schema_name}")
+        session.sql(f"CREATE SCHEMA IF NOT EXISTS {schema_name}").collect()
+        st.success(f"✅ Schema '{schema_name}' created successfully")
+        
+        results = []
+        st.write(demo_data['tables'])
+        for table_key, table_info in demo_data['tables'].items():
+            table_name = table_info['name']
+            full_table_name = f"{schema_name}.{table_name}"
+            
+            st.info(f"🤖 Generating realistic data for {table_name}...")
+            
+            # Generate sample data using LLM for schema and content
+            if 'CHUNKS' in table_name or 'unstructured' in table_key:
+                #st.write('unstructured')
+                # Use LLM to generate realistic unstructured content
+                with st.spinner(f"Generating {table_name} Data (Unstractured)"):
+                    sample_data = generate_unstructured_content_with_llm(table_info, num_records, company_name)
+            else:
+                #st.write('stract')
+                # Use LLM to generate realistic structured data
+                with st.spinner(f"Generating {table_name} Data (Stractured)"):
+                    sample_data = generate_realistic_content_with_llm(table_info, num_records, company_name)
+
+    
+            if sample_data:
+                # Create DataFrame
+                df = pd.DataFrame(sample_data)
+                
+                # Show sample of generated data
+                with st.expander(f"📋 Sample data for {table_name} (showing first 3 rows)"):
+                    st.dataframe(df.head(3))
+                
+                # Convert to Snowpark DataFrame and write to table
+                snow_df = session.create_dataframe(df)
+                snow_df.write.mode("overwrite").save_as_table(full_table_name)
+                
+                results.append({
+                    'table': table_name,
+                    'records': len(sample_data),
+                    'description': table_info['description'],
+                    'columns': list(df.columns)
+                })
+                
+                st.success(f"✅ Table '{table_name}' created with {len(sample_data):,} records and {len(df.columns)} columns")
+            
+        return results
+        
+    except Exception as e:
+        st.error(f"❌ Error creating tables: {str(e)}")
+        return []
+
+def generate_data_story(company_name, demo_data, table_results):
+    """Generate a narrative story about the created data"""
+    story = f"""
+# 📊 Data Story for {company_name}
+
+## Demo Overview: {demo_data['title']}
+{demo_data['description']}
+
+## 🏗️ Data Infrastructure Created
+
+Your demo environment now includes a complete data infrastructure with **{len(table_results)} tables** containing real-world sample data:
+
+### 📈 Structured Analytics Tables (for Cortex Analyst)
+"""
+    
+    structured_tables = [t for t in table_results if not 'CHUNKS' in t['table']]
+    for table in structured_tables:
+                    story += f"""
+**{table['table']}** ({table['records']:,} records, {len(table['columns'])} columns)
+- {table['description']}
+- Columns: {', '.join(table['columns'][:5])}{'...' if len(table['columns']) > 5 else ''}
+- Ready for natural language queries through Cortex Analyst
+- Supports complex analytical questions and trend analysis
+"""
+    
+    unstructured_tables = [t for t in table_results if 'CHUNKS' in t['table']]
+    if unstructured_tables:
+        story += f"""
+### 🔍 Unstructured Search Data (for Cortex Search)
+"""
+        for table in unstructured_tables:
+            story += f"""
+**{table['table']}** ({table['records']:,} text chunks, {len(table['columns'])} columns)
+- {table['description']}
+- Key column: CHUNK_TEXT (contains the searchable text content)
+- Columns: {', '.join(table['columns'][:5])}{'...' if len(table['columns']) > 5 else ''}
+- Optimized for semantic search and knowledge retrieval
+- Enables natural language search across unstructured content
+"""
+    
+    story += f"""
+## 🚀 Demo Capabilities
+
+### With Cortex Analyst, you can now ask questions like:
+- "What are our top-performing products this quarter?"
+- "Show me customer trends by region and segment"
+- "What's the revenue impact of our discount campaigns?"
+- "Which customer segments have the highest lifetime value?"
+
+### With Cortex Search, you can:
+- Search through customer feedback semantically
+- Find relevant information from unstructured documents
+- Get intelligent answers from your knowledge base
+- Retrieve contextual information for customer interactions
+
+## 💡 Storytelling Tips for Your Demo
+
+1. **Start with the business challenge** - Frame the demo around real problems {company_name} might face
+2. **Show the data first** - Let them see the rich, realistic data you're working with
+3. **Ask natural questions** - Demonstrate how easy it is to get insights without SQL
+4. **Highlight the AI capabilities** - Show both analytical and search AI working together
+5. **Connect to their use cases** - Relate findings back to their specific business needs
+
+## 🎯 Next Steps
+
+1. Set up Cortex Analyst on the structured tables
+2. Configure Cortex Search service on the chunked data
+3. Prepare demo questions relevant to {company_name}'s business
+4. Test the full workflow before your presentation
+
+Your demo environment is now ready to showcase the power of Snowflake's AI and data capabilities!
+"""
+    
+    return story
+
+# Main UI
+with st.container():
+    st.header("🎯 Customer Information")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        company_url = st.text_input(
+            "Company URL *",
+            placeholder="https://company.com",
+            help="Enter the customer's website URL"
+        )
+        
+        use_cases = st.text_area(
+            "Use Case Ideas (Optional)",
+            placeholder="E.g., Customer analytics, fraud detection, document search...",
+            help="Describe potential use cases to customize the demo"
+        )
+    
+    with col2:
+        team_members = st.text_input(
+            "Team/People to Meet *",
+            placeholder="CTO, Data Team Lead, Analytics Manager",
+            help="Who will you be presenting to?"
+        )
+        
+        num_records = st.number_input(
+            "Number of Records per Table",
+            min_value=100,
+            max_value=10000,
+            value=1000,
+            step=100,
+            help="How many sample records to generate for each table"
+        )
+
+# Generate Ideas Button
+if st.button("🎨 Generate Demo Ideas", type="primary", disabled=not (company_url and team_members)):
+    if company_url and team_members:
+        with st.spinner("🤖 Using Cortex LLM to generate tailored demo ideas..."):
+            st.session_state.demo_ideas = generate_demo_ideas_with_llm(company_url, team_members, use_cases)
+        st.success("✨ AI-generated demo ideas ready! Choose one below.")
+        st.rerun()
+
+# Display Demo Ideas
+if st.session_state.demo_ideas:
+    st.header("💡 Demo Ideas")
+    
+    # Create tabs for each demo idea
+    tabs = st.tabs([f"Demo {i+1}: {demo['title'].split(':')[0]}" for i, demo in enumerate(st.session_state.demo_ideas)])
+    
+    for i, (tab, demo) in enumerate(zip(tabs, st.session_state.demo_ideas)):
+        with tab:
+            st.subheader(demo['title'])
+            st.write(demo['description'])
+            
+            if 'industry_focus' in demo:
+                st.info(f"🏭 Industry Focus: {demo['industry_focus']}")
+            
+            if 'business_value' in demo:
+                st.info(f"💼 Business Value: {demo['business_value']}")
+                
+            if 'target_audience' in demo:
+                st.info(f"👥 {demo['target_audience']}")
+            
+            if 'customization' in demo:
+                st.info(f"🎯 {demo['customization']}")
+            
+            st.write("**📊 Data Tables:**")
+            
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                st.write("**Structured Table 1**")
+                st.write(f"🏷️ **{demo['tables']['structured_1']['name']}**")
+                st.caption(demo['tables']['structured_1']['description'])
+                st.caption(f"💡 {demo['tables']['structured_1']['purpose']}")
+            
+            with col2:
+                st.write("**Structured Table 2**")
+                st.write(f"🏷️ **{demo['tables']['structured_2']['name']}**")
+                st.caption(demo['tables']['structured_2']['description'])
+                st.caption(f"💡 {demo['tables']['structured_2']['purpose']}")
+            
+            with col3:
+                st.write("**Unstructured Table**")
+                st.write(f"🏷️ **{demo['tables']['unstructured']['name']}**")
+                st.caption(demo['tables']['unstructured']['description'])
+                st.caption(f"💡 {demo['tables']['unstructured']['purpose']}")
+            
+            # Select button for this demo
+            if st.button(f"🚀 Select Demo {i+1}", key=f"select_demo_{i}"):
+                st.session_state.selected_demo = demo
+                st.success(f"✅ Selected: {demo['title']}")
+                st.rerun()
+
+# Schema Creation and Data Generation
+if st.session_state.selected_demo:
+    st.header("🏗️ Create Demo Infrastructure")
+    
+    company_name = clean_company_name(company_url)
+    default_schema = f"{company_name.upper()}_DEMO_{datetime.now().strftime('%Y%m%d')}"
+    
+    col1, col2 = st.columns([2, 1])
+    
+    with col1:
+        schema_name = st.text_input(
+            "Schema Name",
+            value=default_schema,
+            help="Name for the schema where tables will be created"
+        )
+    
+    with col2:
+        st.metric("Records per Table", f"{num_records:,}")
+    
+    # Create Infrastructure Button
+    if st.button("🛠️ Create Demo Infrastructure", type="primary"):
+        if schema_name:
+            with st.spinner("Creating schema and populating tables..."):
+                session.sql(f"CREATE DATABASE IF NOT EXISTS SI_DEMOS").collect()
+                st.success(f"✅ DATABASE SI_DEMOS EXISTS")
+                
+                table_results = create_tables_in_snowflake(
+                    schema_name, 
+                    st.session_state.selected_demo, 
+                    num_records, 
+                    company_name
+                )
+                
+                if table_results:
+                    st.session_state.generation_complete = True
+                    st.session_state.table_results = table_results
+                    st.session_state.schema_name = schema_name
+                    
+                    # Generate and display data story
+                    story = generate_data_story(
+                        company_name, 
+                        st.session_state.selected_demo, 
+                        table_results
+                    )
+                    
+                    st.markdown("---")
+                    st.markdown(story)
+                    
+                    # Summary metrics
+                    total_records = sum(t['records'] for t in table_results)
+                    st.balloons()
+                    st.success(f"🎉 Demo infrastructure created successfully! Total records: {total_records:,}")
+
