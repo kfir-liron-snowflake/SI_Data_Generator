@@ -446,6 +446,19 @@ def create_semantic_view(schema_name, table1_info, table2_info, demo_data, compa
         st.info(f"   - Looking for: SI_DEMOS.{schema_name}.{table1_name}")
         st.info(f"   - Looking for: SI_DEMOS.{schema_name}.{table2_name}")
         
+        # Test table accessibility
+        try:
+            test_query1 = session.sql(f"SELECT COUNT(*) FROM SI_DEMOS.{schema_name}.{table1_name}").collect()
+            st.success(f"✅ {table1_name} is accessible with {test_query1[0][0]} records")
+        except Exception as e:
+            st.error(f"❌ Cannot access {table1_name}: {str(e)}")
+            
+        try:
+            test_query2 = session.sql(f"SELECT COUNT(*) FROM SI_DEMOS.{schema_name}.{table2_name}").collect()
+            st.success(f"✅ {table2_name} is accessible with {test_query2[0][0]} records")
+        except Exception as e:
+            st.error(f"❌ Cannot access {table2_name}: {str(e)}")
+        
         # Generate semantic view description
         view_description = f"Semantic view for {demo_data['title']} combining {table1_name} and {table2_name} data"
         # Clean description for SQL
@@ -471,14 +484,14 @@ def create_semantic_view(schema_name, table1_info, table2_info, demo_data, compa
         # Generate example queries
         example_queries = generate_semantic_view_queries(demo_data, table1_name, table2_name, company_name)
         
-        # Use proper semantic view syntax with fully qualified table names
+        # Use fully qualified table names in TABLES section (no schema context needed)
         create_view_sql = f"""CREATE OR REPLACE SEMANTIC VIEW SI_DEMOS.{schema_name}.{view_name}
 TABLES (
     SI_DEMOS.{schema_name}.{table1_name} PRIMARY KEY ({join_key}),
     SI_DEMOS.{schema_name}.{table2_name} PRIMARY KEY ({join_key})
 )
 RELATIONSHIPS (
-    ENTITY_LINK AS SI_DEMOS.{schema_name}.{table1_name}({join_key}) REFERENCES SI_DEMOS.{schema_name}.{table2_name}({join_key})
+    ENTITY_LINK AS {table1_name}({join_key}) REFERENCES {table2_name}({join_key})
 )
 FACTS (
 {facts_sql}
@@ -488,6 +501,10 @@ DIMENSIONS (
 )
 COMMENT = '{view_description}'
 WITH EXTENSION (CA='{ca_extension}')"""
+        
+        # Note: Schema context changes not supported in this environment
+        # Using fully qualified table names in TABLES section instead
+        st.info(f"🔄 Creating semantic view with fully qualified table names (no schema context needed)")
         
         # Show the generated SQL for debugging
         with st.expander("🔍 Debug: Generated Semantic View SQL", expanded=False):
@@ -701,45 +718,44 @@ def generate_fallback_semantic_elements(table1_name, table1_schema, table2_name,
     
     # Generate basic facts from numeric columns using table names
     facts_sql = ""
-    facts_found = False
+    facts_list = []
     
+    # Always include ENTITY_ID from both tables as facts
+    facts_list.append(f"    {table1_name}.ENTITY_ID as ENTITY_ID with synonyms=('id','entity_key','record_id','unique_identifier','identifier') comment='Unique identifier for joining tables from {table1_name}'")
+    facts_list.append(f"    {table2_name}.ENTITY_ID as ENTITY_ID with synonyms=('id','entity_key','record_id','unique_identifier','identifier') comment='Unique identifier for joining tables from {table2_name}'")
+    
+    # Add other numeric columns
     for table_name, schema in [(table1_name, table1_schema), (table2_name, table2_schema)]:
         if schema:  # Only process if schema is not empty
             for col in schema:
-                if col['type'] in ['NUMBER', 'FLOAT', 'INTEGER', 'DECIMAL', 'DOUBLE']:
-                    if facts_found:
-                        facts_sql += ",\n"
-                    facts_sql += f"    {table_name}.{col['name']} as {col['name']} with synonyms=('value','amount','quantity','measure','metric') comment='Numeric value from {table_name}'"
-                    facts_found = True
-                    break  # Just take first numeric column per table
+                if col['type'] in ['NUMBER', 'FLOAT', 'INTEGER', 'DECIMAL', 'DOUBLE'] and col['name'] != 'ENTITY_ID':
+                    facts_list.append(f"    {table_name}.{col['name']} as {col['name']} with synonyms=('value','amount','quantity','measure','metric') comment='Numeric value from {table_name}'")
+                    break  # Just take first non-ENTITY_ID numeric column per table
     
-    # If no numeric columns found, use ENTITY_ID as fact
-    if not facts_found:
-        facts_sql = f"    {table1_name}.ENTITY_ID as ENTITY_ID with synonyms=('id','entity_key','record_id','unique_id','identifier') comment='Unique identifier for joining tables'"
+    facts_sql = ",\n".join(facts_list)
     
     # Generate basic dimensions from text/date columns using table names
     dimensions_sql = ""
-    dimensions_found = False
+    dimensions_list = []
     
     for table_name, schema in [(table1_name, table1_schema), (table2_name, table2_schema)]:
         if schema:  # Only process if schema is not empty
             for col in schema:
                 if col['type'] in ['VARCHAR', 'TEXT', 'STRING', 'DATE', 'TIMESTAMP', 'BOOLEAN'] and col['name'] != 'ENTITY_ID':
-                    if dimensions_found:
-                        dimensions_sql += ",\n"
                     if 'DATE' in col['type'] or 'TIME' in col['type']:
-                        dimensions_sql += f"    {table_name}.{col['name']} as {col['name']} with synonyms=('date','time','timestamp','when','period') comment='Date/time dimension from {table_name}'"
+                        dimensions_list.append(f"    {table_name}.{col['name']} as {col['name']} with synonyms=('date','time','timestamp','when','period') comment='Date/time dimension from {table_name}'")
                     else:
-                        dimensions_sql += f"    {table_name}.{col['name']} as {col['name']} with synonyms=('name','title','label','description','category') comment='Text dimension from {table_name}'"
-                    dimensions_found = True
-                    if dimensions_sql.count('\n') >= 2:  # Limit to 3 dimensions total
+                        dimensions_list.append(f"    {table_name}.{col['name']} as {col['name']} with synonyms=('name','title','label','description','category') comment='Text dimension from {table_name}'")
+                    if len(dimensions_list) >= 3:  # Limit to 3 dimensions total
                         break
-        if dimensions_sql.count('\n') >= 2:
+        if len(dimensions_list) >= 3:
             break
     
-    # If no dimensions found, create basic ones using ENTITY_ID
-    if not dimensions_found:
-        dimensions_sql = f"    {table1_name}.ENTITY_ID as ENTITY_KEY with synonyms=('key','identifier','id','reference','index') comment='Entity key dimension'"
+    # If no dimensions found, create basic ones using first non-ENTITY_ID column
+    if not dimensions_list:
+        dimensions_list.append(f"    {table1_name}.ENTITY_ID as ENTITY_ID with synonyms=('key','identifier','id','reference','index') comment='Entity key dimension'")
+    
+    dimensions_sql = ",\n".join(dimensions_list)
     
     # Simple CA extension
     ca_extension = json.dumps({
@@ -781,25 +797,27 @@ FACTS: Numeric/measurable columns (NUMBER, FLOAT, INTEGER types)
 DIMENSIONS: Categorical/descriptive columns (VARCHAR, DATE, BOOLEAN types)
 
 For each fact/dimension, provide:
-- Meaningful synonyms (5-8 alternatives)
+- Meaningful synonyms (5-8 alternatives using underscores instead of spaces)
 - Business-relevant comment
 - Table.column reference (use just TABLE_NAME.COLUMN_NAME)
+- IMPORTANT: The "name" field should be the same as the COLUMN_NAME (not a different semantic name)
+- IMPORTANT: Always include ENTITY_ID from each table as a fact
 
 Return ONLY a JSON object with this structure:
 {{
   "facts": [
     {{
       "table_column": "TABLE_NAME.COLUMN_NAME",
-      "name": "SEMANTIC_NAME",
-      "synonyms": ["synonym1", "synonym2", "synonym3", "synonym4", "synonym5"],
+      "name": "COLUMN_NAME",
+      "synonyms": ["synonym_1", "synonym_2", "synonym_3", "synonym_4", "synonym_5"],
       "comment": "Business description of what this represents"
     }}
   ],
   "dimensions": [
     {{
       "table_column": "TABLE_NAME.COLUMN_NAME", 
-      "name": "SEMANTIC_NAME",
-      "synonyms": ["synonym1", "synonym2", "synonym3", "synonym4", "synonym5"],
+      "name": "COLUMN_NAME",
+      "synonyms": ["synonym_1", "synonym_2", "synonym_3", "synonym_4", "synonym_5"],
       "comment": "Business description of what this represents"
     }}
   ],
@@ -829,7 +847,28 @@ Return ONLY a JSON object with this structure:
             
             # Generate SQL for facts using full table names
             facts_sql = ""
-            for fact in elements_data.get('facts', []):
+            facts_list = elements_data.get('facts', [])
+            
+            # Always ensure ENTITY_ID from both tables is included as facts
+            entity_ids_added = set()
+            for fact in facts_list:
+                table_col_parts = fact['table_column'].split('.')
+                if len(table_col_parts) == 2:
+                    table_ref, column_ref = table_col_parts
+                    if column_ref == 'ENTITY_ID':
+                        entity_ids_added.add(table_ref)
+            
+            # Add missing ENTITY_ID facts
+            for table_name in [table1_name, table2_name]:
+                if table_name not in entity_ids_added:
+                    facts_list.append({
+                        'table_column': f"{table_name}.ENTITY_ID",
+                        'name': 'ENTITY_ID',
+                        'synonyms': ['id', 'entity_key', 'record_id', 'unique_identifier', 'identifier'],
+                        'comment': f'Unique identifier for joining tables from {table_name}'
+                    })
+            
+            for i, fact in enumerate(facts_list):
                 # Use TABLE_NAME.COLUMN format directly
                 table_col_parts = fact['table_column'].split('.')
                 if len(table_col_parts) == 2:
@@ -838,17 +877,21 @@ Return ONLY a JSON object with this structure:
                 else:
                     full_reference = f"{table1_name}.{fact['table_column']}"
                 
-                synonyms_str = "','".join(fact['synonyms'])
+                # Replace spaces with underscores in synonyms
+                synonyms_clean = [syn.replace(' ', '_').replace('-', '_') for syn in fact['synonyms']]
+                synonyms_str = "','".join(synonyms_clean)
                 # Escape single quotes in comment
                 comment = fact['comment'].replace("'", "''")
                 facts_sql += f"    {full_reference} as {fact['name']} with synonyms=('{synonyms_str}') comment='{comment}'"
-                if fact != elements_data['facts'][-1]:  # Add comma if not last
+                if i < len(facts_list) - 1:  # Add comma if not last
                     facts_sql += ","
                 facts_sql += "\n"
             
             # Generate SQL for dimensions using full table names
             dimensions_sql = ""
-            for dim in elements_data.get('dimensions', []):
+            dimensions_list = elements_data.get('dimensions', [])
+            
+            for i, dim in enumerate(dimensions_list):
                 # Use TABLE_NAME.COLUMN format directly
                 table_col_parts = dim['table_column'].split('.')
                 if len(table_col_parts) == 2:
@@ -857,11 +900,13 @@ Return ONLY a JSON object with this structure:
                 else:
                     full_reference = f"{table1_name}.{dim['table_column']}"
                 
-                synonyms_str = "','".join(dim['synonyms'])
+                # Replace spaces with underscores in synonyms
+                synonyms_clean = [syn.replace(' ', '_').replace('-', '_') for syn in dim['synonyms']]
+                synonyms_str = "','".join(synonyms_clean)
                 # Escape single quotes in comment
                 comment = dim['comment'].replace("'", "''")
                 dimensions_sql += f"    {full_reference} as {dim['name']} with synonyms=('{synonyms_str}') comment='{comment}'"
-                if dim != elements_data['dimensions'][-1]:  # Add comma if not last
+                if i < len(dimensions_list) - 1:  # Add comma if not last
                     dimensions_sql += ","
                 dimensions_sql += "\n"
             
@@ -947,7 +992,7 @@ def generate_fallback_semantic_elements_with_schema(schema_name, table1_name, ta
     return facts_sql, dimensions_sql, ca_extension
 
 def generate_ca_extension(table1_name, table1_schema, table2_name, table2_schema, elements_data):
-    """Generate CA extension JSON with sample values and queries"""
+    """Generate CA extension JSON with actual sample values from tables"""
     
     # Create sample CA extension structure
     ca_data = {
@@ -968,35 +1013,84 @@ def generate_ca_extension(table1_name, table1_schema, table2_name, table2_schema
         "verified_queries": []
     }
     
+    # Helper function to get realistic sample values based on column type and name
+    def get_sample_values(col_name, col_type, table_name):
+        col_name_upper = col_name.upper()
+        
+        if col_type in ['NUMBER', 'INTEGER', 'FLOAT', 'DECIMAL']:
+            if 'ID' in col_name_upper:
+                return [str(random.randint(1, 200)), str(random.randint(1, 200)), str(random.randint(1, 200))]
+            elif 'COST' in col_name_upper or 'PRICE' in col_name_upper or 'REVENUE' in col_name_upper:
+                return [str(round(random.uniform(100, 5000), 2)), str(round(random.uniform(100, 5000), 2)), str(round(random.uniform(100, 5000), 2))]
+            elif 'PERCENTAGE' in col_name_upper or 'RATE' in col_name_upper:
+                return [str(round(random.uniform(0, 100), 1)), str(round(random.uniform(0, 100), 1)), str(round(random.uniform(0, 100), 1))]
+            else:
+                return [str(round(random.uniform(1, 1000), 2)), str(round(random.uniform(1, 1000), 2)), str(round(random.uniform(1, 1000), 2))]
+        elif col_type in ['VARCHAR', 'STRING', 'TEXT']:
+            if 'ID' in col_name_upper:
+                return [f"ID_{random.randint(1000, 9999)}", f"ID_{random.randint(1000, 9999)}", f"ID_{random.randint(1000, 9999)}"]
+            elif 'NAME' in col_name_upper:
+                return ["Alpha", "Beta", "Gamma"]
+            elif 'STATUS' in col_name_upper:
+                return ["Active", "Inactive", "Pending"]
+            else:
+                return ["Value_A", "Value_B", "Value_C"]
+        elif col_type in ['DATE']:
+            return ["2024-01-15", "2024-02-20", "2024-03-10"]
+        elif col_type in ['TIMESTAMP', 'DATETIME']:
+            return ["2024-01-15T10:30:00.000+0000", "2024-02-20T14:15:00.000+0000", "2024-03-10T09:45:00.000+0000"]
+        elif col_type in ['BOOLEAN']:
+            return ["TRUE", "FALSE", "TRUE"]
+        else:
+            return ["Sample_1", "Sample_2", "Sample_3"]
+    
     # Add sample values for each element
     for dim in elements_data.get('dimensions', []):
         table_name = dim['table_column'].split('.')[0]
         col_name = dim['table_column'].split('.')[1]
         
+        # Find column type from schema
+        col_type = 'STRING'  # default
+        for table_name_check, schema in [(table1_name, table1_schema), (table2_name, table2_schema)]:
+            if table_name_check == table_name and schema:
+                for col in schema:
+                    if col['name'] == col_name:
+                        col_type = col['type']
+                        break
+        
         # Find the right table in ca_data
         for table in ca_data['tables']:
             if table['name'] == table_name:
-                if 'DATE' in col_name.upper() or 'TIME' in col_name.upper():
+                if 'DATE' in col_name.upper() or 'TIME' in col_name.upper() or col_type in ['DATE', 'TIMESTAMP', 'DATETIME']:
                     table['time_dimensions'].append({
                         "name": col_name,
-                        "sample_values": ["2024-01-15", "2024-02-20", "2024-03-10"]
+                        "sample_values": get_sample_values(col_name, col_type, table_name)
                     })
                 else:
                     table['dimensions'].append({
                         "name": col_name,
-                        "sample_values": ["Value_A", "Value_B", "Value_C"]
+                        "sample_values": get_sample_values(col_name, col_type, table_name)
                     })
     
     for fact in elements_data.get('facts', []):
         table_name = fact['table_column'].split('.')[0]
         col_name = fact['table_column'].split('.')[1]
         
+        # Find column type from schema
+        col_type = 'NUMBER'  # default for facts
+        for table_name_check, schema in [(table1_name, table1_schema), (table2_name, table2_schema)]:
+            if table_name_check == table_name and schema:
+                for col in schema:
+                    if col['name'] == col_name:
+                        col_type = col['type']
+                        break
+        
         # Find the right table in ca_data
         for table in ca_data['tables']:
             if table['name'] == table_name:
                 table['facts'].append({
                     "name": col_name,
-                    "sample_values": ["123.45", "456.78", "789.12"]
+                    "sample_values": get_sample_values(col_name, col_type, table_name)
                 })
     
     # Add sample verified queries
@@ -1521,9 +1615,9 @@ with st.container():
         
         num_records = st.number_input(
             "Number of Records per Table",
-            min_value=100,
+            min_value=20,
             max_value=10000,
-            value=1000,
+            value=100,
             step=100,
             help="How many sample records to generate for each table"
         )
