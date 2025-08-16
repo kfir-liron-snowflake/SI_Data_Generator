@@ -1587,7 +1587,10 @@ if st.button("🎨 Generate Demo Ideas", type="primary", disabled=not (company_u
         with st.spinner("🤖 Using Cortex LLM to generate tailored demo ideas..."):
             st.session_state.demo_ideas = generate_demo_ideas_with_llm(company_url, team_members, use_cases)
         st.success("✨ AI-generated demo ideas ready! Choose one below.")
-        st.rerun()
+        if hasattr(st, 'rerun'):
+            st.rerun()
+        else:
+            st.experimental_rerun()
 
 # Display Demo Ideas
 if st.session_state.demo_ideas:
@@ -1639,7 +1642,11 @@ if st.session_state.demo_ideas:
             if st.button(f"🚀 Select Demo {i+1}", key=f"select_demo_{i}"):
                 st.session_state.selected_demo = demo
                 st.success(f"✅ Selected: {demo['title']}")
-                st.rerun()
+                if hasattr(st, 'rerun'):
+                    st.rerun()
+                else:
+                    st.experimental_rerun()
+
 
 # Schema Creation and Data Generation
 if st.session_state.selected_demo:
