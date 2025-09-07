@@ -122,7 +122,7 @@ show_app_info() {
 validate_files() {
     print_status "Validating required files..."
     
-    required_files=("manifest.yml" "setup_script.sql" "streamlit_app")
+    required_files=("manifest.yml" "setup_script.sql" "ui/Dashboard")
     
     for file in "${required_files[@]}"; do
         if [ ! -f "$file" ]; then

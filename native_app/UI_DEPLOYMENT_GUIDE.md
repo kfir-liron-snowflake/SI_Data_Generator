@@ -16,7 +16,7 @@ This guide walks you through deploying the SI Data Generator as a Snowflake Nati
 Ensure you have all files from the `native_app/` folder:
 - ✅ `manifest.yml`
 - ✅ `setup_script.sql`
-- ✅ `streamlit_app`
+- ✅ `ui/Dashboard` (Streamlit app)
 - ✅ `requirements.txt`
 - ✅ `README.md`
 

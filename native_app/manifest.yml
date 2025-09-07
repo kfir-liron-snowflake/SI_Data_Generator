@@ -9,7 +9,7 @@ version:
 artifacts:
   setup_script: setup_script.sql
   readme: README.md
-  default_streamlit: streamlit_app
+  default_streamlit: ui."Dashboard"
 
 configuration:
   log_level: info
