@@ -41,51 +41,9 @@ CREATE WAREHOUSE IF NOT EXISTS SI_DEMO_WH
     COMMENT = 'Warehouse for SI Data Generator application';
 
 -- ================================================================================
--- 3. CREATE ROLES AND PERMISSIONS
+-- 3. ENABLE CORTEX AND VERIFY SETUP
 -- ================================================================================
 ALTER ACCOUNT SET CORTEX_ENABLED_CROSS_REGION = 'ANY_REGION';
-
--- Create application role
-CREATE ROLE IF NOT EXISTS SI_DATA_GENERATOR_ROLE
-    COMMENT = 'Role for SI Data Generator application users';
-
--- Create developer role
-CREATE ROLE IF NOT EXISTS SI_DEVELOPER_ROLE
-    COMMENT = 'Role for developers working with SI Data Generator';
-
-GRANT ROLE SI_DATA_GENERATOR_ROLE TO ROLE ACCOUNTADMIN;
-GRANT ROLE SI_DEVELOPER_ROLE TO ROLE ACCOUNTADMIN;
--- Grant database and schema usage
-GRANT USAGE ON DATABASE SI_DEMOS TO ROLE SI_DATA_GENERATOR_ROLE;
-GRANT USAGE ON SCHEMA SI_DEMOS.APPLICATIONS TO ROLE SI_DATA_GENERATOR_ROLE;
-GRANT USAGE ON SCHEMA SI_DEMOS.DEMO_DATA TO ROLE SI_DATA_GENERATOR_ROLE;
-
--- Grant comprehensive permissions on DEMO_DATA schema
-GRANT ALL PRIVILEGES ON SCHEMA SI_DEMOS.DEMO_DATA TO ROLE SI_DATA_GENERATOR_ROLE;
-GRANT CREATE TABLE ON SCHEMA SI_DEMOS.DEMO_DATA TO ROLE SI_DATA_GENERATOR_ROLE;
-GRANT CREATE VIEW ON SCHEMA SI_DEMOS.DEMO_DATA TO ROLE SI_DATA_GENERATOR_ROLE;
-GRANT CREATE SEMANTIC VIEW ON SCHEMA SI_DEMOS.DEMO_DATA TO ROLE SI_DATA_GENERATOR_ROLE;
-
--- Grant permissions to create and manage all object types
-GRANT CREATE SCHEMA ON DATABASE SI_DEMOS TO ROLE SI_DATA_GENERATOR_ROLE;
-
--- Grant warehouse usage
-GRANT USAGE ON WAREHOUSE SI_DEMO_WH TO ROLE SI_DATA_GENERATOR_ROLE;
-GRANT OPERATE ON WAREHOUSE SI_DEMO_WH TO ROLE SI_DATA_GENERATOR_ROLE;
-
--- Grant developer role additional permissions
-GRANT USAGE ON DATABASE SI_DEMOS TO ROLE SI_DEVELOPER_ROLE;
-GRANT USAGE ON SCHEMA SI_DEMOS.APPLICATIONS TO ROLE SI_DEVELOPER_ROLE;
-GRANT ALL PRIVILEGES ON SCHEMA SI_DEMOS.APPLICATIONS TO ROLE SI_DEVELOPER_ROLE;
-GRANT USAGE ON WAREHOUSE SI_DEMO_WH TO ROLE SI_DEVELOPER_ROLE;
-
--- Grant Cortex functions usage (required for LLM integration)
--- GRANT USAGE ON FUNCTION SNOWFLAKE.CORTEX.COMPLETE(STRING, STRING) TO ROLE SI_DATA_GENERATOR_ROLE;
--- GRANT USAGE ON FUNCTION SNOWFLAKE.CORTEX.COMPLETE(STRING, STRING, OBJECT) TO ROLE SI_DATA_GENERATOR_ROLE;
-
--- Grant roles to current user (modify as needed)
--- GRANT ROLE SI_DATA_GENERATOR_ROLE TO USER CURRENT_USER();
--- GRANT ROLE SI_DEVELOPER_ROLE TO USER CURRENT_USER();
 
 -- ================================================================================
 -- 4. CREATE GIT INTEGRATION
@@ -127,25 +85,21 @@ CREATE OR REPLACE STREAMLIT SI_DATA_GENERATOR_APP
     COMMENT = 'SI Data Generator Streamlit Application'
     TITLE = 'Snowflake Agent Demo Data Generator';
 
--- Grant usage on the Streamlit app
-GRANT USAGE ON STREAMLIT SI_DATA_GENERATOR_APP TO ROLE SI_DATA_GENERATOR_ROLE;
+-- Grant usage on the Streamlit app to ACCOUNTADMIN
+GRANT USAGE ON STREAMLIT SI_DATA_GENERATOR_APP TO ROLE ACCOUNTADMIN;
 
 -- ================================================================================
 -- 6. ADDITIONAL SETUP FOR CORTEX SEARCH
 -- ================================================================================
 
--- Grant permissions for Cortex Search service creation
-USE ROLE ACCOUNTADMIN;
-
-GRANT CREATE CORTEX SEARCH SERVICE ON ALL SCHEMAS IN DATABASE SI_DEMOS TO ROLE SI_DATA_GENERATOR_ROLE;
-GRANT CREATE CORTEX SEARCH SERVICE ON FUTURE SCHEMAS IN DATABASE SI_DEMOS TO ROLE SI_DATA_GENERATOR_ROLE;
+-- Cortex Search permissions are handled by ACCOUNTADMIN role
 
 -- ================================================================================
 -- 7. SETUP VALIDATION AND INFORMATION
 -- ================================================================================
 
 -- Set context for testing
-USE ROLE SI_DATA_GENERATOR_ROLE;
+USE ROLE ACCOUNTADMIN;
 USE WAREHOUSE SI_DEMO_WH;
 USE DATABASE SI_DEMOS;
 
@@ -153,7 +107,7 @@ USE DATABASE SI_DEMOS;
 SHOW DATABASES LIKE 'SI_DEMOS';
 SHOW SCHEMAS IN DATABASE SI_DEMOS;
 SHOW WAREHOUSES LIKE 'SI_DEMO_WH';
-SHOW ROLES LIKE '%SI_%';
+-- SHOW ROLES LIKE '%SI_%'; -- No custom roles created
 
 -- Test Cortex function access
 SELECT SNOWFLAKE.CORTEX.COMPLETE(
@@ -175,8 +129,8 @@ POST-SETUP INSTRUCTIONS
    - Access URL will be provided in Snowsight under "Streamlit Apps"
 
 2. USER ACCESS:
-   - Grant SI_DATA_GENERATOR_ROLE to users who need to run the application
-   - Grant SI_DEVELOPER_ROLE to users who need to modify the application
+   - All operations run with ACCOUNTADMIN privileges
+   - No additional role grants needed for basic functionality
 
 3. DEMO USAGE:
    - The app will create schemas under SI_DEMOS with pattern: SI_DEMOS.[COMPANY]_DEMO_[DATE]
@@ -194,8 +148,8 @@ POST-SETUP INSTRUCTIONS
    - Check Cortex function usage for cost optimization
 
 6. PERMISSIONS:
-   To grant access to additional users, run:
-   GRANT ROLE SI_DATA_GENERATOR_ROLE TO USER '<username>';
+   - All permissions handled by ACCOUNTADMIN role
+   - No additional role management required
 
 7. CLEANUP:
    To remove demo data, drop the individual demo schemas:
