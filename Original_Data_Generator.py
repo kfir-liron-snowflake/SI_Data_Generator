@@ -1459,7 +1459,7 @@ def create_tables_in_snowflake(schema_name, demo_data, num_records, company_name
         return []
 
 def generate_data_story(company_name, demo_data, table_results):
-    """Generate a narrative story about the created data"""
+    """Generate a concise, actionable demo guide"""
     # Separate different types of objects
     regular_tables = [t for t in table_results if t.get('type') not in ['semantic_view', 'search_service']]
     semantic_views = [t for t in table_results if t.get('type') == 'semantic_view']
@@ -1468,121 +1468,80 @@ def generate_data_story(company_name, demo_data, table_results):
     structured_tables = [t for t in regular_tables if not 'CHUNKS' in t['table']]
     unstructured_tables = [t for t in regular_tables if 'CHUNKS' in t['table']]
     
-    total_objects = len(table_results)
     total_records = sum(t['records'] for t in regular_tables if isinstance(t['records'], int))
     
+    # Get business focus from demo data
+    industry_focus = demo_data.get('industry_focus', 'Business Intelligence')
+    business_value = demo_data.get('business_value', 'Improve operational efficiency and decision making')
+    
     story = f"""
-# 📊 Enhanced Data Story for {company_name}
+# 🎯 {company_name} Demo: {demo_data['title']}
 
-## Demo Overview: {demo_data['title']}
-{demo_data['description']}
+## 📊 Data Generated
+- **{len(structured_tables)} Structured Tables** ({total_records:,} records) with ENTITY_ID PRIMARY KEY for joins
+- **{len(unstructured_tables)} Unstructured Table** (text chunks) for semantic search
+- **1 Semantic View** connecting all data with AI-ready relationships
+- **1 Cortex Search Service** for intelligent document retrieval
 
-## 🏗️ Complete AI-Ready Data Infrastructure Created
-
-Your demo environment now includes **{total_objects} data objects** with **{total_records:,} total records** of realistic sample data:
-
-### 📈 Structured Analytics Tables (for Cortex Analyst)
+**Tables Created:**
 """
     
     for table in structured_tables:
-        story += f"""
-**{table['table']}** ({table['records']:,} records, {len(table['columns'])} columns)
-- {table['description']}
-- Columns: {', '.join(table['columns'][:5])}{'...' if len(table['columns']) > 5 else ''}
-- **PRIMARY KEY: ENTITY_ID** (defined as table constraint for optimal joins)
-- **Now includes ENTITY_ID as PRIMARY KEY for joining with other tables**
-- Ready for natural language queries through Cortex Analyst
+        story += f"• **{table['table']}** - {table['description']}\n"
+    
+    for table in unstructured_tables:
+        story += f"• **{table['table']}** - Searchable text content for knowledge retrieval\n"
+    
+    story += f"""
+## 💼 Top 3 Business Value Points
+
+1. **Unified Data Analytics** - Join structured data across tables for complete business insights
+2. **AI-Powered Intelligence** - Natural language queries eliminate need for SQL expertise  
+3. **Knowledge Discovery** - Semantic search finds relevant information in unstructured content
+
+## 🔍 Example Analyst Queries (Cortex Analyst)
 """
     
-    if unstructured_tables:
-        story += f"""
-### 🔍 Unstructured Search Data (for Cortex Search)
-"""
-        for table in unstructured_tables:
-            story += f"""
-**{table['table']}** ({table['records']:,} text chunks, {len(table['columns'])} columns)
-- {table['description']}
-- Key column: CHUNK_TEXT (contains the searchable text content)
-- Optimized for semantic search and knowledge retrieval
-"""
-    
-    if semantic_views:
-        story += f"""
-### 🔗 Semantic Views (AI-Enhanced Analytics)
-"""
-        for view in semantic_views:
-            story += f"""
-**{view['table']}** (Semantic View)
-- {view['description']}
-- **Join Key**: {view['join_key']} (connects structured tables)
-- **Relationships**: Properly defined for Cortex Analyst
-- **Example Questions You Can Ask**:
-"""
-            for query in view.get('example_queries', []):
-                story += f"  - \"{query}\"\n"
-    
-    if search_services:
-        story += f"""
-### 🤖 Cortex Search Services (Semantic Search)
-"""
-        for service in search_services:
-            story += f"""
-**{service['table']}** (Search Service)
-- {service['description']}
-- **Target Lag**: 1 minute (near real-time updates)
-- **Searchable Attributes**: CHUNK_ID, DOCUMENT_ID, DOCUMENT_TYPE, SOURCE_SYSTEM
-- **Ready for**: Semantic search queries and knowledge retrieval
+    # Add example queries from semantic view if available
+    if semantic_views and semantic_views[0].get('example_queries'):
+        for i, query in enumerate(semantic_views[0]['example_queries'][:3], 1):
+            story += f"{i}. \"{query}\"\n"
+    else:
+        # Fallback queries
+        story += f"""1. "What are the top performing entities by key metrics this quarter?"
+2. "Show me trends and patterns across all data over the last 6 months"
+3. "Which categories have the highest performance and lowest costs?"
 """
     
     story += f"""
-## 🚀 Enhanced Demo Capabilities
+## 🔎 Example Search Queries (Cortex Search)
 
-### With Cortex Analyst + Semantic Views, you can now ask:
-- **Complex Join Questions**: "Show me customer behavior patterns across all touchpoints"
-- **Trend Analysis**: "What are our top-performing segments by revenue over time?"
-- **Cross-Table Insights**: "Compare customer satisfaction with purchase behavior"
-- **Performance Metrics**: "Which entities have the highest engagement and conversion?"
+1. "Find best practices for {industry_focus.lower()} optimization"
+2. "What are common challenges in {industry_focus.lower()} operations?"  
+3. "Search for recommendations about performance improvements"
 
-### With Cortex Search Service, you can:
-- **Semantic Search**: Find information by meaning, not just keywords
-- **Contextual Retrieval**: Get relevant information based on business context
-- **Knowledge Discovery**: Uncover insights hidden in unstructured data
-- **Real-time Updates**: Search reflects data changes within 1 minute
+## 🚀 Step-by-Step Agent Demo Flow
 
-### 🔗 Joinable Architecture Benefits:
-- **Unified Analytics**: All structured tables connect via ENTITY_ID PRIMARY KEY
-- **Optimal Join Performance**: PRIMARY KEY constraints ensure fast, reliable joins
-- **Complete Customer View**: 360-degree data perspective with guaranteed referential integrity
-- **Cross-functional Insights**: Connect different business processes with confidence
-- **Scalable Relationships**: Easy to add more tables with same PRIMARY KEY pattern
+### Step 1: Structured Data Analysis (Join Query)
+**Ask:** *"What are the top 5 performing entities and their key metrics?"*
+- ✅ Cortex Analyst queries structured tables
+- ✅ Joins data using ENTITY_ID 
+- ✅ Returns analytical insights with charts
 
-## 💡 Advanced Demo Storytelling Tips
+### Step 2: Model Logic Follow-up  
+**Ask:** *"What could be the reasons for these performance differences?"*
+- ✅ Agent uses AI reasoning (not querying data)
+- ✅ Provides business insights and hypotheses
+- ✅ Suggests potential factors and correlations
 
-1. **Start with the Architecture** - Show the interconnected data model
-2. **Demonstrate Join Capabilities** - Ask questions that span multiple tables  
-3. **Showcase Search Intelligence** - Find specific information in unstructured data
-4. **Highlight AI Integration** - Both analytical and search AI working together
-5. **Real-world Scenarios** - Use {company_name}'s actual business challenges
+### Step 3: Unstructured Knowledge Retrieval
+**Ask:** *"Find relevant best practices or recommendations for improving these metrics"*
+- ✅ Cortex Search queries unstructured content
+- ✅ Returns contextual information from text data
+- ✅ Combines with previous analysis for complete insights
 
-## 🎯 Technical Setup Complete
-
-✅ **Database**: SI_DEMOS
-✅ **Schema**: Properly organized with full table names
-✅ **Structured Tables**: {len(structured_tables)} tables with ENTITY_ID PRIMARY KEY constraints
-✅ **Unstructured Data**: {len(unstructured_tables)} chunk tables for search
-✅ **Semantic View**: AI-ready with relationships and example queries
-✅ **Search Service**: Cortex Search configured and ready
-✅ **Total Records**: {total_records:,} realistic sample records
-
-## 🚦 Next Steps
-
-1. **Test Cortex Analyst**: Use the semantic view for natural language queries
-2. **Test Cortex Search**: Query the search service for unstructured content
-3. **Prepare Demo Flow**: Plan questions that showcase both capabilities
-4. **Customize Queries**: Use the provided example questions as starting points
-5. **Practice Integration**: Show how analytics and search work together
-
-Your **AI-powered demo infrastructure** is now complete and ready to showcase the full power of Snowflake's intelligent data platform!
+## ✨ Demo Ready!
+Your {company_name} demo environment is configured and ready to showcase the full power of Snowflake's AI agents with both structured analytics and unstructured search capabilities.
 """
     
     return story
@@ -1628,7 +1587,10 @@ if st.button("🎨 Generate Demo Ideas", type="primary", disabled=not (company_u
         with st.spinner("🤖 Using Cortex LLM to generate tailored demo ideas..."):
             st.session_state.demo_ideas = generate_demo_ideas_with_llm(company_url, team_members, use_cases)
         st.success("✨ AI-generated demo ideas ready! Choose one below.")
-        st.rerun()
+        if hasattr(st, 'rerun'):
+            st.rerun()
+        else:
+            st.experimental_rerun()
 
 # Display Demo Ideas
 if st.session_state.demo_ideas:
@@ -1680,7 +1642,11 @@ if st.session_state.demo_ideas:
             if st.button(f"🚀 Select Demo {i+1}", key=f"select_demo_{i}"):
                 st.session_state.selected_demo = demo
                 st.success(f"✅ Selected: {demo['title']}")
-                st.rerun()
+                if hasattr(st, 'rerun'):
+                    st.rerun()
+                else:
+                    st.experimental_rerun()
+
 
 # Schema Creation and Data Generation
 if st.session_state.selected_demo:
