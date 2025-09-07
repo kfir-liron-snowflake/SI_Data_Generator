@@ -102,7 +102,7 @@ def get_fallback_demo_ideas(company_name, team_members, use_cases):
 ### Adjust Compute Resources
 ```sql
 -- Scale warehouse up/down based on usage
-ALTER WAREHOUSE SI_DEMO_WH SET WAREHOUSE_SIZE = 'LARGE';
+ALTER WAREHOUSE SI_DEMO_WH SET WAREHOUSE_SIZE = 'X-SMALL';
 
 -- Modify auto-suspend timing
 ALTER WAREHOUSE SI_DEMO_WH SET AUTO_SUSPEND = 600; -- 10 minutes

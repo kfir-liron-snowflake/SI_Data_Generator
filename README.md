@@ -195,7 +195,7 @@ def get_fallback_demo_ideas(company_name, team_members, use_cases):
 ### **Compute Resources**
 ```sql
 -- Scale warehouse based on usage
-ALTER WAREHOUSE SI_DEMO_WH SET WAREHOUSE_SIZE = 'LARGE';
+ALTER WAREHOUSE SI_DEMO_WH SET WAREHOUSE_SIZE = 'X-SMALL';
 ```
 
 ## 📈 Business Value
