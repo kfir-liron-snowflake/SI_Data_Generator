@@ -247,7 +247,7 @@ USE ROLE ACCOUNTADMIN;
 **"Cortex function not accessible" Error**
 ```sql
 GRANT USAGE ON FUNCTION SNOWFLAKE.CORTEX.COMPLETE(STRING, STRING) 
-TO ROLE SI_DATA_GENERATOR_ROLE;
+TO ROLE ACCOUNTADMIN;
 ```
 
 **"Streamlit app not loading"**

@@ -39,19 +39,16 @@ The script will automatically verify the setup at the end. Look for:
 
 ## 👥 User Management
 
-### Grant Access to Users
+### Access Management
 ```sql
--- Grant demo generator access to a user
-USE ROLE ACCOUNTADMIN;
-GRANT ROLE SI_DATA_GENERATOR_ROLE TO USER 'username';
-
--- Grant developer access (for app modification)
-GRANT ROLE SI_DEVELOPER_ROLE TO USER 'developer_username';
+-- All operations run with ACCOUNTADMIN privileges
+-- No additional role grants needed for basic functionality
+-- Users with ACCOUNTADMIN access can use the application directly
 ```
 
-### Roles Created
-- **`SI_DATA_GENERATOR_ROLE`**: Can run the app and generate demo data
-- **`SI_DEVELOPER_ROLE`**: Can modify the app and manage git integration
+### Simplified Access
+- **ACCOUNTADMIN**: Full access to run the app and generate demo data
+- **No custom roles**: Simplified permission model
 
 ## 🏗️ Architecture Overview
 
@@ -129,9 +126,7 @@ DROP DATABASE IF EXISTS SI_DEMOS;
 -- Remove compute
 DROP WAREHOUSE IF EXISTS SI_DEMO_WH;
 
--- Remove roles
-DROP ROLE IF EXISTS SI_DATA_GENERATOR_ROLE;
-DROP ROLE IF EXISTS SI_DEVELOPER_ROLE;
+-- No custom roles to remove (using ACCOUNTADMIN only)
 
 -- Remove git integration
 DROP INTEGRATION IF EXISTS SI_DATA_GENERATOR_GIT_INTEGRATION;
@@ -162,7 +157,7 @@ USE ROLE ACCOUNTADMIN;
 **"Cortex function not accessible" Error**
 ```sql
 -- Grant Cortex permissions
-GRANT USAGE ON FUNCTION SNOWFLAKE.CORTEX.COMPLETE(STRING, STRING) TO ROLE SI_DATA_GENERATOR_ROLE;
+-- Cortex functions available to ACCOUNTADMIN by default
 ```
 
 **"Git repository not found" Error**
