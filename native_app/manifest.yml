@@ -20,9 +20,3 @@ privileges:
       description: "Permission to create demo data tables"
   - CREATE VIEW:
       description: "Permission to create semantic views"
-  - CREATE SEMANTIC VIEW:
-      description: "Permission to create semantic views for Cortex Analyst"
-  - CREATE CORTEX SEARCH SERVICE:
-      description: "Permission to create Cortex Search services"
-  - USAGE ON WAREHOUSE:
-      description: "Permission to use warehouse for data generation"
