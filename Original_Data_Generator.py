@@ -1341,8 +1341,7 @@ def create_structured_table_with_constraints(full_table_name, df, schema_name, t
 def create_tables_in_snowflake(schema_name, demo_data, num_records, company_name, enable_search_service=False, enable_semantic_view=False):
     """Create schema and tables in Snowflake with LLM-generated realistic data"""
     try:
-        # Create database and schema properly
-        session.sql(f"CREATE DATABASE IF NOT EXISTS SI_DEMOS").collect()
+        # Create schema properly (database already exists)
         session.sql(f"CREATE SCHEMA IF NOT EXISTS SI_DEMOS.{schema_name}").collect()
         st.success(f"✅ Schema 'SI_DEMOS.{schema_name}' created successfully")
         
@@ -1699,7 +1698,6 @@ if st.session_state.selected_demo:
     if st.button("🛠️ Create Demo Infrastructure", type="primary"):
         if schema_name:
             with st.spinner("Creating schema and populating tables..."):
-                session.sql(f"CREATE DATABASE IF NOT EXISTS SI_DEMOS").collect()
                 st.success(f"✅ DATABASE SI_DEMOS EXISTS")
                 
                 table_results = create_tables_in_snowflake(
