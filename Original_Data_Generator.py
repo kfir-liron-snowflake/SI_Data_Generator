@@ -44,12 +44,15 @@ def generate_demo_ideas_with_llm(company_url, team_members, use_cases):
     """Generate 3 demo ideas using Snowflake Cortex LLM"""
     company_name = clean_company_name(company_url)
     
+    # Clean URL for LLM prompt (remove trailing slash)
+    clean_url = company_url.rstrip('/')
+    
     # Create prompt for LLM
     prompt = f"""
 You are a Snowflake solutions architect creating tailored demo scenarios for a customer. Based on the information provided, generate 3 distinct demo ideas that showcase Snowflake's Cortex Analyst and Cortex Search capabilities.
 
 Customer Information:
-- Company: {company_name} ({company_url})
+- Company: {company_name} ({clean_url})
 - Team/Audience: {team_members}
 - Use Cases: {use_cases if use_cases else "Not specified"}
 
