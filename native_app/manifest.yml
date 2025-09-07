@@ -1,27 +1,28 @@
+# For more information on creating manifest, go to https://docs.snowflake.com/en/developer-guide/native-apps/creating-manifest
 manifest_version: 1
+
 version:
-  name: v1.0.0
-  label: SI Data Generator v1.0.0
-  comment: Initial release of Snowflake Intelligence Data Generator
+  name: v1
+  label: "version 1"
+  comment: "Initial version of SI Data Generator application"
 
 artifacts:
-  - name: app
-    type: streamlit
-    source: streamlit_app.py
+  setup_script: setup_script.sql
+  readme: README.md
+  default_streamlit: streamlit_app
 
 configuration:
-  log_level: INFO
-  trace_level: ON
+  log_level: info
+  trace_level: always
 
-setup_script: setup_script.sql
-
-# Application metadata
-title: Snowflake Intelligence Data Generator
-description: Generate tailored demo data infrastructure for Cortex Analyst and Cortex Search services
-primary_owner: Snowflake Solutions Engineering
-primary_owner_email: solutions@snowflake.com
-category: Analytics
-tags: ["demo", "data-generation", "cortex", "ai", "analytics"]
-
-# Runtime configuration
-runtime_version: 3.11
+privileges:
+  - CREATE TABLE:
+      description: "Permission to create demo data tables"
+  - CREATE VIEW:
+      description: "Permission to create semantic views"
+  - CREATE SEMANTIC VIEW:
+      description: "Permission to create semantic views for Cortex Analyst"
+  - CREATE CORTEX SEARCH SERVICE:
+      description: "Permission to create Cortex Search services"
+  - USAGE ON WAREHOUSE:
+      description: "Permission to use warehouse for data generation"
