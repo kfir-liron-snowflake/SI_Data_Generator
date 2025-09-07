@@ -1,0 +1,79 @@
+# SI Data Generator Native App Configuration
+# 
+# This file contains configuration settings for the native application
+# that can be customized during deployment or runtime.
+
+# Application metadata
+app:
+  name: "Snowflake Intelligence Data Generator"
+  version: "1.0.0"
+  description: "Generate tailored demo data infrastructure for Cortex Analyst and Cortex Search services"
+  category: "Analytics"
+  tags: ["demo", "data-generation", "cortex", "ai", "analytics"]
+
+# Default configuration values
+defaults:
+  records:
+    min: 20
+    max: 10000
+    default: 100
+  
+  warehouse:
+    size: "X-SMALL"
+    auto_suspend: 300
+    auto_resume: true
+  
+  features:
+    enable_semantic_view: true
+    enable_search_service: true
+    enable_statistics: true
+
+# Database configuration
+database:
+  name: "SI_DEMOS"
+  schemas:
+    applications: "APPLICATIONS"
+    demo_data: "DEMO_DATA"
+
+# Security configuration
+security:
+  roles:
+    app_role: "app_instance_role"
+  
+  permissions:
+    - "USAGE ON DATABASE SI_DEMOS"
+    - "USAGE ON SCHEMA SI_DEMOS.APPLICATIONS"
+    - "USAGE ON SCHEMA SI_DEMOS.DEMO_DATA"
+    - "CREATE TABLE ON SCHEMA SI_DEMOS.DEMO_DATA"
+    - "CREATE VIEW ON SCHEMA SI_DEMOS.DEMO_DATA"
+    - "CREATE SEMANTIC VIEW ON SCHEMA SI_DEMOS.DEMO_DATA"
+    - "CREATE CORTEX SEARCH SERVICE ON ALL SCHEMAS IN DATABASE SI_DEMOS"
+
+# Cortex configuration
+cortex:
+  models:
+    default: "claude-4-sonnet"
+    fallback: "claude-4-sonnet"
+  
+  functions:
+    - "SNOWFLAKE.CORTEX.COMPLETE(STRING, STRING)"
+    - "SNOWFLAKE.CORTEX.COMPLETE(STRING, STRING, OBJECT)"
+
+# UI configuration
+ui:
+  theme:
+    primary_color: "#1f77b4"
+    background_color: "#ffffff"
+    text_color: "#262730"
+  
+  layout:
+    page_title: "Snowflake Intelligence Data Generator"
+    page_icon: "❄️"
+    layout: "wide"
+
+# Monitoring and logging
+monitoring:
+  log_level: "INFO"
+  trace_level: "ON"
+  enable_metrics: true
+  enable_statistics: true

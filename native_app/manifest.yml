@@ -1,0 +1,27 @@
+manifest_version: 1
+version:
+  name: v1.0.0
+  label: SI Data Generator v1.0.0
+  comment: Initial release of Snowflake Intelligence Data Generator
+
+artifacts:
+  - name: app
+    type: streamlit
+    source: streamlit_app.py
+
+configuration:
+  log_level: INFO
+  trace_level: ON
+
+setup_script: setup_script.sql
+
+# Application metadata
+title: Snowflake Intelligence Data Generator
+description: Generate tailored demo data infrastructure for Cortex Analyst and Cortex Search services
+primary_owner: Snowflake Solutions Engineering
+primary_owner_email: solutions@snowflake.com
+category: Analytics
+tags: ["demo", "data-generation", "cortex", "ai", "analytics"]
+
+# Runtime configuration
+runtime_version: 3.11
