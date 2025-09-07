@@ -33,6 +33,8 @@ def clean_company_name(url):
     """Extract clean company name from URL"""
     # Remove protocol and www
     clean_url = re.sub(r'https?://(www\.)?', '', url.lower())
+    # Remove trailing slash and any path segments
+    clean_url = clean_url.split('/')[0]
     # Get domain name without extension
     domain = clean_url.split('.')[0]
     # Capitalize first letter
