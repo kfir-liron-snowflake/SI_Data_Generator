@@ -40,6 +40,14 @@ CREATE WAREHOUSE IF NOT EXISTS SI_DEMO_WH
     AUTO_RESUME = TRUE
     COMMENT = 'Warehouse for SI Data Generator application';
 
+-- Create compute warehouse for Cortex operations
+CREATE WAREHOUSE IF NOT EXISTS compute_wh
+    WITH 
+    WAREHOUSE_SIZE = 'X-SMALL'
+    AUTO_SUSPEND = 300
+    AUTO_RESUME = TRUE
+    COMMENT = 'Compute warehouse for Cortex LLM operations';
+
 -- ================================================================================
 -- 3. ENABLE CORTEX AND VERIFY SETUP
 -- ================================================================================
