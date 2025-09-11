@@ -1195,7 +1195,7 @@ def generate_chunked_data_from_samples(text_samples, num_records, table_info, co
                     'CHUNK_POSITION': (j // chunk_size) + 1,
                     'CHUNK_LENGTH': len(chunk_text),
                     'DOCUMENT_TYPE': table_info['name'].replace('_CHUNKS', '').lower(),
-                    'SOURCE_SYSTEM': company_name.upper(),
+                    'SOURCE_SYSTEM': company_name.replace('-', '_').upper(),
                     'CREATED_DATE': (datetime.now() - timedelta(days=random.randint(1, 365))).date(),
                     'LAST_MODIFIED': datetime.now() - timedelta(days=random.randint(0, 30)),
                     'METADATA': json.dumps({
@@ -1260,7 +1260,7 @@ def create_sample_data(table_type, table_name, num_records, company_name, join_k
             elif col_name == 'ID':
                 record[col_name] = i + 1
             elif col_name == 'NAME':
-                record[col_name] = f"{company_name}_Item_{i+1}"
+                record[col_name] = f"{company_name.replace('-', '_')}_Item_{i+1}"
             elif col_name == 'CATEGORY':
                 record[col_name] = random.choice(['A', 'B', 'C', 'Premium'])
             elif col_name == 'VALUE':
@@ -1657,7 +1657,9 @@ if st.session_state.selected_demo:
     st.header("🏗️ Create Demo Infrastructure")
     
     company_name = clean_company_name(company_url)
-    default_schema = f"{company_name.upper()}_DEMO_{datetime.now().strftime('%Y%m%d')}"
+    # Replace hyphens with underscores for schema and object names
+    clean_company_name_for_objects = company_name.replace('-', '_')
+    default_schema = f"{clean_company_name_for_objects.upper()}_DEMO_{datetime.now().strftime('%Y%m%d')}"
     
     col1, col2 = st.columns([2, 1])
     
