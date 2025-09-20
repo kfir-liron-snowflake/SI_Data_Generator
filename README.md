@@ -257,8 +257,8 @@ TO ROLE ACCOUNTADMIN;
 
 ## 📚 Documentation
 
-- **`SETUP_GUIDE.md`**: Complete setup instructions
-- **`Setup.sql`**: Automated environment creation
+- **`NATIVE_APP_PROVIDER_GUIDE.md`**: Complete guide for Native App providers (installation, testing, releases)
+- **`Setup.sql`**: Automated environment creation for standalone deployment
 - **Generated Demo Guides**: Custom documentation for each demo
 
 ## 🤝 Contributing
@@ -283,4 +283,4 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 **Ready to create amazing Snowflake demos?** 🚀
 
-[Get Started with Setup Guide](SETUP_GUIDE.md) | [View Setup Script](Setup.sql) | [Report Issues](https://github.com/kfir-liron-snowflake/SI_Data_Generator/issues)
+[Native App Provider Guide](NATIVE_APP_PROVIDER_GUIDE.md) | [Standalone Setup Script](Setup.sql) | [Report Issues](https://github.com/kfir-liron-snowflake/SI_Data_Generator/issues)
