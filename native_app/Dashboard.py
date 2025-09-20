@@ -20,6 +20,37 @@ st.set_page_config(
 
 st.title("❄️ Snowflake Agent Demo Data Generator")
 st.markdown("Generate tailored demo data infrastructure for Cortex Analyst and Cortex Search services")
+warehouse_name = session.get_current_warehouse()
+
+try:
+    #If running in Native App context, make sure we have the necessary permissions
+    
+    import snowflake.permissions as permissions
+
+    PRIVILEGES = [
+        'IMPORTED PRIVILEGES ON SNOWFLAKE DB'
+    ]
+
+    WAREHOUSE_REFERENCE_NAME = 'consumer_warehouse'
+
+    res = permissions.get_missing_account_privileges(PRIVILEGES)
+    if res and len(res) > 0:
+        st.error("Please grant access to Cortex")
+        permissions.request_account_privileges(PRIVILEGES)
+        st.stop()
+
+    warehouse_reference = permissions.get_detailed_reference_associations(WAREHOUSE_REFERENCE_NAME)
+    if not warehouse_reference or len(warehouse_reference) == 0:
+        st.error("Please select the Cortex Search Warehouse")
+        permissions.request_reference(WAREHOUSE_REFERENCE_NAME)
+        st.stop()
+
+    # Get the granted warehouse name
+    warehouse_name = warehouse_reference[0]['name']
+
+except Exception:
+    # Running outside of Native App context
+    pass
 
 # Initialize session state
 if 'demo_ideas' not in st.session_state:
@@ -401,14 +432,14 @@ def create_cortex_search_service(schema_name, table_name, search_column="CHUNK_T
     """Create Cortex Search service for unstructured data"""
     try:
         service_name = f"{table_name}_SEARCH_SERVICE"
-        full_table_name = f"SI_DEMOS.{schema_name}.{table_name}"
+        full_table_name = f"{schema_name}.{table_name}"
         
         # Create the search service
         create_service_sql = f"""
-        CREATE OR REPLACE CORTEX SEARCH SERVICE SI_DEMOS.{schema_name}.{service_name}
+        CREATE OR REPLACE CORTEX SEARCH SERVICE {schema_name}.{service_name}
         ON {search_column}
         ATTRIBUTES CHUNK_ID, DOCUMENT_ID, DOCUMENT_TYPE, SOURCE_SYSTEM
-        WAREHOUSE = COMPUTE_WH
+        WAREHOUSE = ?
         TARGET_LAG = '1 minute'
         AS (
             SELECT 
@@ -421,7 +452,7 @@ def create_cortex_search_service(schema_name, table_name, search_column="CHUNK_T
         );
         """
         
-        session.sql(create_service_sql).collect()
+        session.sql(create_service_sql, params=[warehouse_name]).collect()
         st.success(f"✅ Cortex Search Service '{service_name}' created successfully")
         
         return service_name
@@ -443,23 +474,23 @@ def create_semantic_view(schema_name, table1_info, table2_info, demo_data, compa
         join_key = "ENTITY_ID"
         
         # Debug: Show what tables exist in the schema
-        st.info(f"🔍 Checking for tables in schema SI_DEMOS.{schema_name}")
+        st.info(f"🔍 Checking for tables in schema {schema_name}")
         show_existing_tables(schema_name)
         
         # Verify tables exist before creating semantic view
         st.info(f"🔍 Verifying table existence:")
-        st.info(f"   - Looking for: SI_DEMOS.{schema_name}.{table1_name}")
-        st.info(f"   - Looking for: SI_DEMOS.{schema_name}.{table2_name}")
+        st.info(f"   - Looking for: {schema_name}.{table1_name}")
+        st.info(f"   - Looking for: {schema_name}.{table2_name}")
         
         # Test table accessibility
         try:
-            test_query1 = session.sql(f"SELECT COUNT(*) FROM SI_DEMOS.{schema_name}.{table1_name}").collect()
+            test_query1 = session.sql(f"SELECT COUNT(*) FROM {schema_name}.{table1_name}").collect()
             st.success(f"✅ {table1_name} is accessible with {test_query1[0][0]} records")
         except Exception as e:
             st.error(f"❌ Cannot access {table1_name}: {str(e)}")
             
         try:
-            test_query2 = session.sql(f"SELECT COUNT(*) FROM SI_DEMOS.{schema_name}.{table2_name}").collect()
+            test_query2 = session.sql(f"SELECT COUNT(*) FROM {schema_name}.{table2_name}").collect()
             st.success(f"✅ {table2_name} is accessible with {test_query2[0][0]} records")
         except Exception as e:
             st.error(f"❌ Cannot access {table2_name}: {str(e)}")
@@ -477,8 +508,8 @@ def create_semantic_view(schema_name, table1_info, table2_info, demo_data, compa
         if not table1_schema or not table2_schema:
             st.error(f"❌ Could not retrieve schema for tables {table1_name} or {table2_name}")
             st.error(f"❌ Tables must exist before creating semantic view!")
-            st.error(f"❌ Expected: SI_DEMOS.{schema_name}.{table1_name}")
-            st.error(f"❌ Expected: SI_DEMOS.{schema_name}.{table2_name}")
+            st.error(f"❌ Expected: {schema_name}.{table1_name}")
+            st.error(f"❌ Expected: {schema_name}.{table2_name}")
             return None
         
         # Generate facts, dimensions, and CA extension
@@ -490,10 +521,10 @@ def create_semantic_view(schema_name, table1_info, table2_info, demo_data, compa
         example_queries = generate_semantic_view_queries(demo_data, table1_name, table2_name, company_name)
         
         # Use fully qualified table names in TABLES section (no schema context needed)
-        create_view_sql = f"""CREATE OR REPLACE SEMANTIC VIEW SI_DEMOS.{schema_name}.{view_name}
+        create_view_sql = f"""CREATE OR REPLACE SEMANTIC VIEW {schema_name}.{view_name}
 TABLES (
-    SI_DEMOS.{schema_name}.{table1_name} PRIMARY KEY ({join_key}),
-    SI_DEMOS.{schema_name}.{table2_name} PRIMARY KEY ({join_key})
+{schema_name}.{table1_name} PRIMARY KEY ({join_key}),
+{schema_name}.{table2_name} PRIMARY KEY ({join_key})
 )
 RELATIONSHIPS (
     ENTITY_LINK AS {table1_name}({join_key}) REFERENCES {table2_name}({join_key})
@@ -540,15 +571,14 @@ def show_existing_tables(schema_name):
             SELECT TABLE_NAME 
             FROM INFORMATION_SCHEMA.TABLES 
             WHERE TABLE_SCHEMA = '{schema_name.upper()}'
-            AND TABLE_CATALOG = 'SI_DEMOS'
             ORDER BY TABLE_NAME
         """).collect()
         
         if result:
             table_names = [row['TABLE_NAME'] for row in result]
-            st.info(f"📋 Found {len(table_names)} tables in SI_DEMOS.{schema_name}: {', '.join(table_names)}")
+            st.info(f"📋 Found {len(table_names)} tables in {schema_name}: {', '.join(table_names)}")
         else:
-            st.warning(f"⚠️ No tables found in schema SI_DEMOS.{schema_name}")
+            st.warning(f"⚠️ No tables found in schema {schema_name}")
             
     except Exception as e:
         st.warning(f"⚠️ Could not list tables in schema: {str(e)}")
@@ -569,7 +599,7 @@ def get_table_schema(schema_name, table_name):
             st.warning(f"⚠️ No columns found for table {schema_name}.{table_name}")
             # Try alternative query
             try:
-                result = session.sql(f"DESCRIBE TABLE SI_DEMOS.{schema_name}.{table_name}").collect()
+                result = session.sql(f"DESCRIBE TABLE {schema_name}.{table_name}").collect()
                 columns = []
                 for row in result:
                     columns.append({
@@ -986,7 +1016,7 @@ def generate_fallback_semantic_elements_with_schema(schema_name, table1_name, ta
             {
                 "name": "Show all records",
                 "question": "Show all records",
-                "sql": f"SELECT * FROM SI_DEMOS.{schema_name}.{table1_name} LIMIT 10",
+                "sql": f"SELECT * FROM {schema_name}.{table1_name} LIMIT 10",
                 "use_as_onboarding_question": False,
                 "verified_by": "Demo Generator",
                 "verified_at": int(datetime.now().timestamp())
@@ -1342,8 +1372,8 @@ def create_tables_in_snowflake(schema_name, demo_data, num_records, company_name
     """Create schema and tables in Snowflake with LLM-generated realistic data"""
     try:
         # Create schema properly (database already exists)
-        session.sql(f"CREATE SCHEMA IF NOT EXISTS SI_DEMOS.{schema_name}").collect()
-        st.success(f"✅ Schema 'SI_DEMOS.{schema_name}' created successfully")
+        session.sql(f"CREATE SCHEMA IF NOT EXISTS {schema_name}").collect()
+        st.success(f"✅ Schema '{schema_name}' created successfully")
         
         results = []
         structured_tables_data = {}
@@ -1370,7 +1400,7 @@ def create_tables_in_snowflake(schema_name, demo_data, num_records, company_name
         st.write(demo_data['tables'])
         for table_key, table_info in demo_data['tables'].items():
             table_name = table_info['name']
-            full_table_name = f"SI_DEMOS.{schema_name}.{table_name}"
+            full_table_name = f"{schema_name}.{table_name}"
             
             st.info(f"🤖 Generating realistic data for {table_name}...")
             
@@ -1700,7 +1730,7 @@ if st.session_state.selected_demo:
     if st.button("🛠️ Create Demo Infrastructure", type="primary"):
         if schema_name:
             with st.spinner("Creating schema and populating tables..."):
-                st.success(f"✅ DATABASE SI_DEMOS EXISTS")
+                st.success(f"✅ Database context established")
                 
                 table_results = create_tables_in_snowflake(
                     schema_name, 
