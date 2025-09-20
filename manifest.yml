@@ -1,0 +1,28 @@
+manifest_version: 1
+
+version:
+  name: V1_0
+  label: "1.0"
+  comment: "Snowflake Intelligence Data Generator - Generate tailored demo data infrastructure for Cortex Analyst and Cortex Search services"
+
+artifacts:
+  setup_script: setup_script.sql
+  default_streamlit: APPLICATIONS.dashboard
+
+configuration:
+  log_level: INFO
+  trace_level: OFF
+
+references:
+  - consumer_warehouse:
+      object_type: warehouse
+      label: "Cortex Search Warehouse"
+      description: "Warehouse for running data generation and Cortex Search"
+      register_callback: CONFIG.REGISTER_SINGLE_REFERENCE
+      privileges:
+        - USAGE
+        - OPERATE
+
+privileges:
+  - IMPORTED PRIVILEGES ON SNOWFLAKE DB:
+      description: "Enables application to use Cortex Functions"
