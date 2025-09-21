@@ -87,7 +87,7 @@ USE WAREHOUSE SI_DEMO_WH;
 
 -- Create the Streamlit application
 CREATE OR REPLACE STREAMLIT SI_DATA_GENERATOR_APP
-    ROOT_LOCATION = '@SI_DEMOS.APPLICATIONS.SI_DATA_GENERATOR_REPO/branches/main'
+    ROOT_LOCATION = '@SI_DEMOS.APPLICATIONS.SI_DATA_GENERATOR_REPO/branches/main/native_app'
     MAIN_FILE = '/Dashboard.py'
     QUERY_WAREHOUSE = SI_DEMO_WH
     COMMENT = 'SI Data Generator Streamlit Application'
