@@ -1,0 +1,25 @@
+definition_version: 2
+
+entities:
+  si_data_generator_pkg:
+    type: application package
+    identifier: si_data_generator_pkg
+    artifacts:
+      - src: manifest.yml
+        dest: ./
+      - src: native_app/setup_script.sql
+        dest: setup_script.sql
+      - src: native_app/app_config.yml
+        dest: app_config.yml
+      - src: native_app/environment.yml
+        dest: ui/environment.yml
+      - src: native_app/Dashboard.py
+        dest: ui/Dashboard.py
+      - src: native_app/README.md
+        dest: README.md
+
+  si_data_generator_app:
+    type: application
+    identifier: si_data_generator_app
+    from:
+      target: si_data_generator_pkg

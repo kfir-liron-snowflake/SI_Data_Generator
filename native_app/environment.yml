@@ -1,0 +1,7 @@
+name: Demo Data Generator
+channels:
+- snowflake
+dependencies:
+- requests
+- snowflake-native-apps-permission
+- streamlit=1.46.0
