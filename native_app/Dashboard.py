@@ -439,7 +439,7 @@ def create_cortex_search_service(schema_name, table_name, search_column="CHUNK_T
         CREATE OR REPLACE CORTEX SEARCH SERVICE {schema_name}.{service_name}
         ON {search_column}
         ATTRIBUTES CHUNK_ID, DOCUMENT_ID, DOCUMENT_TYPE, SOURCE_SYSTEM
-        WAREHOUSE = ?
+        WAREHOUSE = compute_wh
         TARGET_LAG = '1 minute'
         AS (
             SELECT 
