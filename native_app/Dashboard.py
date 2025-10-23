@@ -1601,7 +1601,7 @@ with st.container():
     
     with col2:
         team_members = st.text_input(
-            "Team/People to Meet *",
+            "Who will use the Agent *",
             placeholder="CTO, Data Team Lead, Analytics Manager",
             help="Who will you be presenting to?"
         )
